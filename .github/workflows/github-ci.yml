@@ -1,0 +1,32 @@
+name: Build Application
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-app:
+    runs-on: ubuntu-latest  # a. Запуск на ОС Linux
+    
+    container:
+      image: maven:3.9.10-eclipse-temurin-21  # b. Docker-образ для контейнера
+      
+    steps:
+      # i. Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      # ii. Настройка прав доступа к скрипту mvnw
+      - name: Set permissions for mvnw
+        run: chmod u+x ./mvnw
+        
+      # iii. Запуск скрипта mvnw для сборки
+      - name: Build with Maven
+        run: ./mvnw -B clean package
+        
+      # iv. Сохранение артефактов
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vuln-jar-files
+          path: ./target/*.jar

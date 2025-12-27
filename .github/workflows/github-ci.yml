@@ -31,7 +31,36 @@ jobs:
           name: vuln-jar-files
           path: ./target/*.jar
   
-  # 1) НОВАЯ ЗАДАЧА SAST
+  # 1) НОВАЯ ЗАДАЧА ДЛЯ АНАЛИЗА СОСТАВА ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ (SCA)
+  dependency-check:
+    # Запускается после успешной сборки
+    needs: build-app
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Шаг 1: Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Шаг 2: Запуск OWASP Dependency Check анализа
+      - name: Run OWASP Dependency Check
+        run: |
+          ./mvnw org.owasp:dependency-check-maven:check \
+            -Dformats=html \
+            -DsuppressionFiles=dependency-check-suppressions.xml \
+            -DfailBuildOnCVSS=0 \
+            -DskipTestScope=true
+      
+      # Шаг 3: Сохранение отчёта в артефакты
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: ./target/dependency-check-report.html
+        # Продолжать выполнение даже если сканирование нашло уязвимости
+        continue-on-error: true
+  
+  # 2) НОВАЯ ЗАДАЧА SAST
   sast-scan:
     # Запускается после успешной сборки
     needs: build-app
@@ -60,7 +89,7 @@ jobs:
           # Установите ваш токен Semgrep для доступа к дополнительным правилам
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
       
-      # 2) Загрузка отчета SARIF в GitHub Code Scanning
+      # 3) Загрузка отчета SARIF в GitHub Code Scanning
       - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v4
         with:

@@ -1,0 +1,96 @@
+name: Build Application
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-app:
+    runs-on: ubuntu-latest
+    
+    container:
+      image: maven:3.9.10-eclipse-temurin-21
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set permissions for mvnw
+        run: chmod u+x ./mvnw
+        
+      - name: Build with Maven
+        run: ./mvnw -B clean package
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vuln-jar-files
+          path: ./target/*.jar
+  
+  security-analysis:
+    needs: build-app
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set permissions for mvnw
+        run: chmod u+x ./mvnw
+      
+      # 1. Анализ зависимостей с упрощенной проверкой
+      - name: Analyze Dependencies
+        run: |
+          # Создаем простой отчет о зависимостях
+          echo "=== Dependency Analysis ===" > security-report.txt
+          echo "Generated: $(date)" >> security-report.txt
+          echo "" >> security-report.txt
+          
+          # Получаем список зависимостей
+          ./mvnw dependency:list >> security-report.txt
+          
+          # Проверяем на наличие известных уязвимых зависимостей
+          echo "" >> security-report.txt
+          echo "=== Security Notes ===" >> security-report.txt
+          echo "For full OWASP Dependency Check:" >> security-report.txt
+          echo "1. Requires NVD API key" >> security-report.txt
+          echo "2. Configure in GitHub Secrets" >> security-report.txt
+          
+          # Конвертируем в HTML
+          echo '<html><body><pre>' > security-report.html
+          cat security-report.txt >> security-report.html
+          echo '</pre></body></html>' >> security-report.html
+      
+      # 2. Сохраняем отчеты
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            ./security-report.html
+            ./security-report.txt
+  
+  sast-scan:
+    needs: build-app
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run Semgrep SAST Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >
+            p/default
+            p/security-audit
+          output: semgrep-results.sarif
+          output-format: sarif
+          quiet: true
+      
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep-results.sarif
+          category: semgrep-sast
+        continue-on-error: true

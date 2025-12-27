@@ -17,6 +17,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Версия OWASP Dependency Check -->
+        <dependency-check.version>9.0.10</dependency-check.version>
     </properties>
 
     <dependencies>
@@ -93,6 +95,30 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <!-- OWASP Dependency Check Maven Plugin -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>${dependency-check.version}</version>
+                <configuration>
+                    <!-- a. Формат отчёта в виде HTML -->
+                    <formats>html</formats>
+                    <!-- b. Путь к файлу с исключениями -->
+                    <suppressionFiles>
+                        <suppressionFile>dependency-check-suppressions.xml</suppressionFile>
+                    </suppressionFiles>
+                    <!-- Дополнительные опции для ускорения -->
+                    <failBuildOnCVSS>0</failBuildOnCVSS>
+                    <skipTestScope>true</skipTestScope>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

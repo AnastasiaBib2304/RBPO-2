@@ -42,7 +42,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      # Шаг 2: Запуск OWASP Dependency Check анализа
+      # Шаг 2: Установка прав доступа к скрипту mvnw (ДОБАВЛЕНО ДЛЯ ИСПРАВЛЕНИЯ ОШИБКИ)
+      - name: Set permissions for mvnw
+        run: chmod u+x ./mvnw
+      
+      # Шаг 3: Запуск OWASP Dependency Check анализа
       - name: Run OWASP Dependency Check
         run: |
           ./mvnw org.owasp:dependency-check-maven:check \
@@ -51,7 +55,7 @@ jobs:
             -DfailBuildOnCVSS=0 \
             -DskipTestScope=true
       
-      # Шаг 3: Сохранение отчёта в артефакты
+      # Шаг 4: Сохранение отчёта в артефакты
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
         with:

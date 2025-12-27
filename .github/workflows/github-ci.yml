@@ -6,100 +6,88 @@ on:
 
 jobs:
   build-app:
-    runs-on: ubuntu-latest  # a. Запуск на ОС Linux
+    runs-on: ubuntu-latest
     
     container:
-      image: maven:3.9.10-eclipse-temurin-21  # b. Docker-образ для контейнера
+      image: maven:3.9.10-eclipse-temurin-21
       
     steps:
-      # i. Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      # ii. Настройка прав доступа к скрипту mvnw
       - name: Set permissions for mvnw
         run: chmod u+x ./mvnw
         
-      # iii. Запуск скрипта mvnw для сборки
       - name: Build with Maven
         run: ./mvnw -B clean package
         
-      # iv. Сохранение артефактов
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: vuln-jar-files
           path: ./target/*.jar
   
-  # 1) НОВАЯ ЗАДАЧА ДЛЯ АНАЛИЗА СОСТАВА ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ (SCA)
   dependency-check:
-    # Запускается после успешной сборки
     needs: build-app
     runs-on: ubuntu-latest
     
     steps:
-      # Шаг 1: Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      # Шаг 2: Установка прав доступа к скрипту mvnw (ДОБАВЛЕНО ДЛЯ ИСПРАВЛЕНИЯ ОШИБКИ)
       - name: Set permissions for mvnw
         run: chmod u+x ./mvnw
       
-      # Шаг 3: Запуск OWASP Dependency Check анализа
+      - name: Download latest OWASP DC data
+        run: |
+          mkdir -p ~/.m2/repository/org/owasp/dependency-check-data
+          curl -L -o ~/.m2/repository/org/owasp/dependency-check-data/dc.h2.zip \
+            https://github.com/jeremylong/DependencyCheck/releases/latest/download/dc.h2.zip
+          unzip -o ~/.m2/repository/org/owasp/dependency-check-data/dc.h2.zip \
+            -d ~/.m2/repository/org/owasp/dependency-check-data/
+      
       - name: Run OWASP Dependency Check
         run: |
           ./mvnw org.owasp:dependency-check-maven:check \
             -Dformats=html \
             -DsuppressionFiles=dependency-check-suppressions.xml \
             -DfailBuildOnCVSS=0 \
-            -DskipTestScope=true
+            -DskipTestScope=true \
+            -DautoUpdate=false \
+            -DnvdApiKey="" \
+            -DnvdApiDelay=0
       
-      # Шаг 4: Сохранение отчёта в артефакты
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-reports
           path: ./target/dependency-check-report.html
-        # Продолжать выполнение даже если сканирование нашло уязвимости
         continue-on-error: true
   
-  # 2) НОВАЯ ЗАДАЧА SAST
   sast-scan:
-    # Запускается после успешной сборки
     needs: build-app
     runs-on: ubuntu-latest
     
     steps:
-      # Шаг 1: Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      # Шаг 2: Запуск Semgrep CE сканирования
+      # Убрал env секцию с токеном - будет использоваться бесплатная версия
       - name: Run Semgrep SAST Scan
         uses: returntocorp/semgrep-action@v1
         with:
-          # Конфигурации для сканирования
+          # Используем только бесплатные правила
           config: >
             p/default
             p/security-audit
-          # Выходной формат SARIF для интеграции с GitHub
           output: semgrep-results.sarif
-          # Формат вывода
           output-format: sarif
-          # Скрыть информацию о правилах в выводе
           quiet: true
-        env:
-          # Установите ваш токен Semgrep для доступа к дополнительным правилам
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        # Удаляем env секцию - Semgrep будет работать без токена
       
-      # 3) Загрузка отчета SARIF в GitHub Code Scanning
       - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v4
         with:
-          # Путь к файлу SARIF, созданному Semgrep
           sarif_file: semgrep-results.sarif
-          # Категория для результатов сканирования
           category: semgrep-sast
-        # Продолжать выполнение даже если сканирование не нашло проблем
         continue-on-error: true

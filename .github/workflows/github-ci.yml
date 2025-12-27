@@ -30,3 +30,43 @@ jobs:
         with:
           name: vuln-jar-files
           path: ./target/*.jar
+  
+  # 1) НОВАЯ ЗАДАЧА SAST
+  sast-scan:
+    # Запускается после успешной сборки
+    needs: build-app
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Шаг 1: Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Шаг 2: Запуск Semgrep CE сканирования
+      - name: Run Semgrep SAST Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          # Конфигурации для сканирования
+          config: >
+            p/default
+            p/security-audit
+          # Выходной формат SARIF для интеграции с GitHub
+          output: semgrep-results.sarif
+          # Формат вывода
+          output-format: sarif
+          # Скрыть информацию о правилах в выводе
+          quiet: true
+        env:
+          # Установите ваш токен Semgrep для доступа к дополнительным правилам
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      
+      # 2) Загрузка отчета SARIF в GitHub Code Scanning
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          # Путь к файлу SARIF, созданному Semgrep
+          sarif_file: semgrep-results.sarif
+          # Категория для результатов сканирования
+          category: semgrep-sast
+        # Продолжать выполнение даже если сканирование не нашло проблем
+        continue-on-error: true
